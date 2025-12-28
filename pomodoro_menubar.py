@@ -6,6 +6,8 @@ Wymagania: pip3 install rumps
 
 import rumps
 import os
+import subprocess
+import threading
 from pathlib import Path
 
 
@@ -13,6 +15,23 @@ def get_icon_path():
     """Zwraca ścieżkę do ikony"""
     script_dir = Path(__file__).parent
     return str(script_dir / "tomatoTemplate.png")
+
+
+def play_sound(sound_name="Glass", repeat=3):
+    """Odtwarza dźwięk systemowy macOS"""
+    sound_path = f"/System/Library/Sounds/{sound_name}.aiff"
+    
+    def play():
+        for _ in range(repeat):
+            try:
+                subprocess.run(["afplay", sound_path], check=False)
+            except:
+                pass
+    
+    # Odtwarzaj w tle żeby nie blokować UI
+    thread = threading.Thread(target=play)
+    thread.daemon = True
+    thread.start()
 
 
 class PomodoroApp(rumps.App):
@@ -178,16 +197,22 @@ class PomodoroApp(rumps.App):
         self.timer.stop()
         self.is_running = False
         
+        # Odtwórz dźwięk alarmu
+        play_sound("Glass", repeat=3)
+        
         if self.is_break:
-            rumps.notification(
-                title="Pomodoro",
-                subtitle="Przerwa zakończona",
-                message="Czas wracać do pracy",
-                sound=True
-            )
+            # Koniec przerwy
             self.is_break = False
             self.time_left = self.work_duration * 60
+            
+            # Pokaż alert
+            rumps.alert(
+                title="Pomodoro - Przerwa zakończona",
+                message="Czas wracać do pracy!",
+                ok="Zaczynam"
+            )
         else:
+            # Koniec pracy
             self.pomodoros_completed += 1
             
             if self.pomodoros_completed % 4 == 0:
@@ -197,14 +222,15 @@ class PomodoroApp(rumps.App):
                 break_time = self.short_break
                 break_type = "krótką"
             
-            rumps.notification(
-                title="Pomodoro",
-                subtitle=f"Sesja #{self.pomodoros_completed} ukończona",
-                message=f"Czas na {break_type} przerwę ({break_time} min)",
-                sound=True
-            )
             self.is_break = True
             self.time_left = break_time * 60
+            
+            # Pokaż alert
+            rumps.alert(
+                title=f"Pomodoro - Sesja #{self.pomodoros_completed} ukończona!",
+                message=f"Czas na {break_type} przerwę ({break_time} min)",
+                ok="OK"
+            )
         
         self.build_menu()
         self.update_display()
